@@ -16,13 +16,36 @@
         pkgs = import nixpkgs {
           inherit system;
         };
-      in {
+
+        workaround140774 = haskellPackage:
+          with pkgs.haskell.lib;
+            overrideCabal haskellPackage (drv: {
+              enableSeparateBinOutput = false;
+            });
+
+        ghc = pkgs.haskell.packages.ghc810;
+
+        app = ghc.callPackage ./project.nix {};
+      in rec {
+        packages = flake-utils.lib.flattenTree {
+          inherit app;
+        };
+
+        defaultPackage = packages.app;
+        apps.app = flake-utils.lib.mkApp {drv = packages.app;};
+        defaultApp = apps.app;
+
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
             coreutils
             moreutils
             jq
-            (pkgs.haskell.packages.ghc810.ghcWithPackages (pkgs: [pkgs.modern-uri]))
+            cabal2nix
+            (workaround140774 haskellPackages.ormolu)
+            (ghc.ghcWithPackages (pkgs: [
+              pkgs.cabal-install
+              pkgs.cabal-fmt
+            ]))
           ];
         };
       }
